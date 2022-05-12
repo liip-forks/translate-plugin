@@ -1,16 +1,16 @@
 <?php namespace RainLab\Translate\FormWidgets;
 
-use Backend\FormWidgets\MediaFinder;
+use Media\Classes\MediaLibrary;
+use Media\FormWidgets\MediaFinder;
 use RainLab\Translate\Models\Locale;
-use System\Classes\MediaLibrary;
 
 /**
- * MLMediaFinder renders a multilingual media finder.
+ * MLMediaFinderv2 renders a multilingual media finder for October CMS v2
  *
  * @package rainlab\translate
  * @author Sascha Aeppli
  */
-class MLMediaFinder extends MediaFinder
+class MLMediaFinderv2 extends MediaFinder
 {
     use \RainLab\Translate\Traits\MLControl;
 
@@ -52,7 +52,7 @@ class MLMediaFinder extends MediaFinder
     }
 
     /**
-     * Prepares the form widget view data
+     * prepareVars prepares the form widget view data
      */
     public function prepareVars()
     {
@@ -67,7 +67,11 @@ class MLMediaFinder extends MediaFinder
      */
     public function getSaveValue($value)
     {
-        return $this->getLocaleSaveValue($value);
+        if ($this->isAvailable) {
+            return $this->getLocaleSaveValue($value);
+        }
+
+        return parent::getSaveValue($value);
     }
 
     /**
@@ -82,7 +86,7 @@ class MLMediaFinder extends MediaFinder
         if (Locale::isAvailable()) {
             $this->loadLocaleAssets();
             $this->addJs('js/mlmediafinder.js');
-            $this->addCss('css/mlmediafinder.css');
+            $this->addCss('../../mlmediafinder/assets/css/mlmediafinder.css');
         }
     }
 
@@ -91,7 +95,7 @@ class MLMediaFinder extends MediaFinder
      */
     protected function getParentViewPath()
     {
-        return base_path().'/modules/backend/formwidgets/mediafinder/partials';
+        return base_path().'/modules/media/formwidgets/mediafinder/partials';
     }
 
     /**
@@ -99,6 +103,6 @@ class MLMediaFinder extends MediaFinder
      */
     protected function getParentAssetPath()
     {
-        return '/modules/backend/formwidgets/mediafinder/assets';
+        return '/modules/media/formwidgets/mediafinder/assets';
     }
 }
