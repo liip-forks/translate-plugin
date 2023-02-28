@@ -86,10 +86,13 @@ class LocalePicker extends ComponentBase
 
         $this->translator->setLocale($locale);
 
-        $pageUrl = $this->withPreservedQueryString($this->makeLocaleUrlFromPage($locale), $locale);
+        // Add locale to path before adding query string (because of htmlspecialchars call in getPathInLocale())
+        $path = $this->makeLocaleUrlFromPage($locale);
         if ($this->property('forceUrl')) {
-            return Redirect::to($this->translator->getPathInLocale($pageUrl, $locale));
+            $path = $this->translator->getPathInLocale($path, $locale);
         }
+
+        $pageUrl = $this->withPreservedQueryString($path, $locale);
 
         return Redirect::to($pageUrl);
     }
