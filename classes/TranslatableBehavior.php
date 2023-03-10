@@ -4,7 +4,6 @@ use Str;
 use RainLab\Translate\Classes\Translator;
 use October\Rain\Extension\ExtensionBase;
 use October\Rain\Html\Helper as HtmlHelper;
-use Config;
 
 /**
  * TranslatableBehavior base class for model behaviors.
@@ -177,9 +176,9 @@ abstract class TranslatableBehavior extends ExtensionBase
             if ($this->hasTranslation($key, $locale)) {
                 $result = $this->getAttributeFromData($this->translatableAttributes[$locale], $key);
             } elseif ($this->translatableUseFallback) {
-                $parentLocaleFallbackEnabled = Config::get('rainlab.translate::enableParentLocaleFallback');
+                // Fallback to parent locale if possible (eg. de-ch would fallback to de)
                 $localeParts = explode('-', $locale);
-                if ($parentLocaleFallbackEnabled && count($localeParts) > 0) {
+                if (count($localeParts) > 0) {
                     $parentLocale = $localeParts[0];
                     if ($parentLocale === $this->translatableDefault) {
                         // If parent locale is the default locale
