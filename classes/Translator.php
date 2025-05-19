@@ -2,6 +2,7 @@
 
 use App;
 use Cms;
+use Url;
 use Site;
 use Event;
 use Schema;
@@ -163,7 +164,10 @@ class Translator
             return $path;
         }
 
-        $newPath = $site->removeRoutePrefix($path);
+        // Remove old prefix (current site)
+        $newPath = Site::getSiteFromContext()->removeRoutePrefix($path);
+
+        // Attach new prefix (proposed site)
         $newPath = $site->attachRoutePrefix($newPath);
 
         return $newPath;
@@ -199,7 +203,7 @@ class Translator
         $newPath = trim($router->urlFromPattern($urlPattern, $params), '/');
         $newPath = $site->attachRoutePrefix($newPath);
 
-        return Cms::url($newPath);
+        return Url::toRelative($newPath);
     }
 
     //

@@ -82,6 +82,35 @@ class TranslatableModel extends TranslatableBehavior
     }
 
     /**
+     * translateContext reloads relations when the context changes
+     */
+    public function translateContext($context = null)
+    {
+        if ($context !== null) {
+            $this->reloadTranslatableRelations();
+        }
+
+        return parent::translateContext($context);
+    }
+
+    /**
+     * reloadTranslatableRelations
+     */
+    public function reloadTranslatableRelations()
+    {
+        $loadedRelations = $this->model->getRelations();
+        if (!$loadedRelations) {
+            return;
+        }
+
+        foreach ($loadedRelations as $relationName => $value) {
+            if (in_array($relationName, $this->getTranslatableAttributes())) {
+                $this->model->reloadRelations($relationName);
+            }
+        }
+    }
+
+    /**
      * scopeTransWhere applies a translatable index to a basic query. This scope will join the
      * index table and can be executed neither more than once, nor with scopeTransOrder.
      * @param  Builder $query
@@ -216,9 +245,7 @@ class TranslatableModel extends TranslatableBehavior
             $locale = $this->translatableContext;
         }
 
-        /*
-         * Model doesn't exist yet, defer this logic in memory
-         */
+        // Model doesn't exist yet, defer this logic in memory
         if (!$this->model->exists) {
             $this->model->bindEventOnce('model.afterCreate', function() use ($locale) {
                 $this->storeTranslatableData($locale);
@@ -264,44 +291,78 @@ class TranslatableModel extends TranslatableBehavior
     }
 
     /**
-     * Saves the basic translation data in the join table.
+     * storeTranslatableBasicData saves the basic translation data in the join table.
      * @param  string $locale
      * @return void
      */
     protected function storeTranslatableBasicData($locale = null)
     {
-        $data = $this->translatableAttributes[$locale];
+        if (!$locale) {
+            $locale = $this->translatableContext;
+        }
 
-        // Only store attributes where values differ from the parent
-        $data = array_intersect_key($data, $this->model->getDirty());
+        $data = (array) $this->translatableAttributes[$locale];
+
+        $data = $this->getUniqueTranslatableData($locale, $data);
+
+        $data = json_encode($data, JSON_UNESCAPED_UNICODE);
 
         $obj = Db::table('rainlab_translate_attributes')
             ->where('locale', $locale)
             ->where('model_id', $this->model->getKey())
             ->where('model_type', $this->getClass());
 
-        if (empty($data) && $obj->count() > 0) {
-            // Remove database entry if data is empty
-            $obj->delete();
-        } else {
-            $encodedData = json_encode($data, JSON_UNESCAPED_UNICODE);
-
-            if ($obj->count() > 0) {
-                $obj->update(['attribute_data' => $encodedData]);
-            }
-            else {
-                Db::table('rainlab_translate_attributes')->insert([
-                    'locale' => $locale,
-                    'model_id' => $this->model->getKey(),
-                    'model_type' => $this->getClass(),
-                    'attribute_data' => $encodedData
-                ]);
-            }
+        if ($obj->count() > 0) {
+            $obj->update(['attribute_data' => $data]);
+        }
+        else {
+            Db::table('rainlab_translate_attributes')->insert([
+                'locale' => $locale,
+                'model_id' => $this->model->getKey(),
+                'model_type' => $this->getClass(),
+                'attribute_data' => $data
+            ]);
         }
     }
 
     /**
-     * Saves the indexed translation data in the join table.
+     * getUniqueTranslatableData returns data that differs with the default locale
+     * by leveraging originalIsEquivalent. It applies contextual values from
+     * setAttributeTranslated, in addition to attributes set on the model.
+     */
+    protected function getUniqueTranslatableData($locale, array $data): array
+    {
+        $originalContext = $this->model->translateContext();
+
+        $originalAttrs = $this->model->attributes;
+
+        $this->model->translateContext($locale);
+
+        $this->model->forceFill($data);
+
+        // Only include attributes that are different from the parent
+        $includeAttrs = $this->model->getDirty();
+
+        // Or attributes that are requested via [fallback => false]
+        if ($optionedAttributes = $this->getTranslatableAttributesWithOptions()) {
+            foreach ($optionedAttributes as $attribute => $options) {
+                if (array_key_exists('fallback', $options) && $options['fallback'] === false) {
+                    $includeAttrs[$attribute] = array_get($data, $attribute);
+                }
+            }
+        }
+
+        $data = array_intersect_key($data, $includeAttrs);
+
+        $this->model->translateContext($originalContext);
+
+        $this->model->attributes = $originalAttrs;
+
+        return $data;
+    }
+
+    /**
+     * storeTranslatableIndexData saves the indexed translation data in the join table.
      * @param  string $locale
      * @return void
      */
@@ -352,7 +413,7 @@ class TranslatableModel extends TranslatableBehavior
     }
 
     /**
-     * Loads the translation data from the join table.
+     * loadTranslatableData loads the translation data from the join table.
      * @param  string $locale
      * @return array
      */
@@ -370,13 +431,13 @@ class TranslatableModel extends TranslatableBehavior
             return $value->attributes['locale'] === $locale;
         });
 
-        $result = $obj ? json_decode($obj->attribute_data, true) : [];
+        $result = (array) ($obj ? json_decode($obj->attribute_data, true) : []);
 
         return $this->translatableOriginals[$locale] = $this->translatableAttributes[$locale] = $result;
     }
 
     /**
-     * Returns the class name of the model. Takes any
+     * getClass returns the class name of the model. Takes any
      * custom morphMap aliases into account.
      *
      * @return string
